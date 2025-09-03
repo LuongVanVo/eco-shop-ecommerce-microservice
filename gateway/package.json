@@ -14,8 +14,16 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/helmet": "^0.0.48",
+    "@types/http-proxy-middleware": "^0.19.3",
+    "@types/morgan": "^1.9.10",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "http-proxy-middleware": "^3.0.5",
+    "morgan": "^1.10.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   },
