@@ -1,16 +1,31 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import cors from 'cors';
+import morgan from 'morgan';
+import helmet from 'helmet';
+
 import dotenv from 'dotenv';
-dotenv.config({ path: '../../.env'});
+dotenv.config();
 
 const app = express();
+
+app.use(morgan('combined'));
+app.use(helmet());
+
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
-console.log(PORT + " and " + process.env.PORT);
+app.use(cors());
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello World from EcoShop of Luong Van Vo Shop bán các sản phẩm thân thiện với môi trường !!!');
+app.use((req: Request, res: Response, next: NextFunction) => {
+  console.log(`Received request: ${req.method} ${req.url}`);
+  next();
 });
+
+app.use('/api/v1/auth', createProxyMiddleware({
+  target: "http://localhost:3001",
+  changeOrigin: true,
+  pathRewrite: (path: string, req: Request) => path,
+}))
 
 app.listen(PORT, () => {
   console.log(`Gateway running on port ${PORT}`);
