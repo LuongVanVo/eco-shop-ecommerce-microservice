@@ -17,6 +17,7 @@ model User {
   updatedAt DateTime       @default(now()) @updatedAt
   profiles  Profile?
   tokens    RefreshToken[]
+  resets    PasswordReset[]
 }
 
 model Profile {
@@ -41,4 +42,14 @@ model RefreshToken {
   createdAt DateTime @default(now())
   publicKey String
   user      User     @relation(fields: [userId], references: [id])
+}
+
+model PasswordReset {
+  id       Int      @id @default(autoincrement())
+  userId    Int
+  token     String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
