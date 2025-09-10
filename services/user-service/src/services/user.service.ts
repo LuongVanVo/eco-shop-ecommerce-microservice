@@ -5,8 +5,11 @@ import bcrypt from 'bcrypt';
 import userRepository from "../models/repository/user.repository";
 import crypto from 'crypto'
 import { createTokenPair } from "../utils/authUtils";
+import jwt, { SignOptions } from "jsonwebtoken";
 
 import dotenv from 'dotenv';
+import { transporter } from "../helpers/transporter";
+import { getInfoData } from "../utils/getInfoData";
 dotenv.config()
 
 class UserService {
@@ -106,6 +109,98 @@ class UserService {
                 revoked: true
             }
         })
+    }
+
+    // quên mật khẩu 
+    static forgotPassword = async (email: string) => {
+        // find email exist ?
+        const foundEmail = await userRepository.findEmailExist(email)
+        if (!foundEmail) 
+            throw new BadRequestError('Error: Email not found !!')
+
+        const payload = {
+            userId: foundEmail.id,
+            email: foundEmail.email
+        }
+
+        // Tạo token reset mật khẩu
+        const JWT_SECRET = process.env.JWT_SECRET_AUTH as string
+        
+        const options: SignOptions = {
+            expiresIn: 10 * 60 // 10 minutes in seconds
+        }
+
+        const resetToken = jwt.sign(payload, JWT_SECRET, options)
+
+        // lưu token vào db
+        await prisma.passwordReset.create({
+            data: {
+                userId: foundEmail.id,
+                token: resetToken,
+                expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+                used: false,
+                createdAt: new Date()
+            }
+        })
+
+        // send email chứa link reset mật khẩu
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: foundEmail.email,
+            subject: 'Password Reset Request',
+            html:   `<p>Your reset token is:<strong>${resetToken}</strong></p>`
+        }
+        await transporter.sendMail(mailOptions)
+
+        return getInfoData(['email', 'createdAt'], foundEmail)
+    }
+
+    // đổi mật khẩu 
+    static resetPassword = async (resetToken: string, email: string, newPassword: string, confirmPassword: string) => {
+        // check resetToken and email valid ??
+        const resetUser = await prisma.passwordReset.findFirst({
+            where: {
+                token: resetToken,
+                used: false,
+                expiresAt : { gt: new Date() },
+                user: {
+                    email: email
+                }
+            },
+            include: {
+                user: true
+            }
+        })
+        if (!resetUser) throw new BadRequestError('Invalid token or email !!')
+
+        // update password
+        if (newPassword !== confirmPassword) 
+            throw new BadRequestError('Error: Passwords do not match !!!')
+
+        const hashedPassword = await hashPassword(newPassword)
+
+        await prisma.user.update({
+            where: {
+                id: resetUser.userId
+            },
+            data: {
+                password: hashedPassword,
+                updatedAt: new Date(),
+            }
+        })
+
+        // đánh dấu token đã sử dụng
+        await prisma.passwordReset.update({
+            where: {
+                id: resetUser.id
+            },
+            data: {
+                used: true,
+            }
+        })
+
+        // Trả về thông tin user
+        return getInfoData(['email', 'updatedAt'], resetUser.user)
     }
 }
     

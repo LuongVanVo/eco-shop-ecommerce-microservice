@@ -2,6 +2,7 @@ import UserService from "../services/user.service";
 import { SuccessResponse } from '../../../../shared/core/success.response'
 import { Request, Response } from 'express';
 import { validationResult } from "express-validator";
+import jwt from 'jsonwebtoken';
 
 class UserController {
     register = async (req: Request, res: Response, next: any) => {
@@ -52,6 +53,35 @@ class UserController {
         await UserService.logout(refreshToken);
         return new SuccessResponse({
             message: 'Logout successfully',
+        }).send(res);
+    }
+
+    forgotPassword = async (req: Request, res: Response, next: any) => {
+        const { email } = req.body as { email: string }
+        const data = await UserService.forgotPassword(email)
+        return new SuccessResponse({
+            message: 'Reset token sent to your email',
+            metadata: data
+        }).send(res)
+    }
+
+    resetPassword = async (req: Request, res: Response, next: any) => {
+        const { email, newPassword, confirmPassword } = req.body;
+        
+        if (!email || !newPassword || !confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: email, newPassword, confirmPassword'
+            });
+        }
+
+        const resetToken = req.resetToken!;
+        
+        const data = await UserService.resetPassword(resetToken, email, newPassword, confirmPassword);
+        
+        return new SuccessResponse({
+            message: "Password reset successfully.",
+            metadata: data
         }).send(res);
     }
 }
