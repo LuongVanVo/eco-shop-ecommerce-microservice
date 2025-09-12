@@ -1,125 +1,130 @@
-// middleware/resetTokenMiddleware.ts
-import jwt from 'jsonwebtoken';
-import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../config/database.config';
+// middleware/authMiddleware.ts
+import jwt from "jsonwebtoken";
+import { Request, Response, NextFunction } from "express";
+import { prisma } from "../config/database.config";
+import crypto from 'crypto';
+import { JWTPayload } from "../../types/interface";
+import {} from "../../types/express";
 
-// Extend Request interface để TypeScript hiểu
-declare global {
-    namespace Express {
-        interface Request {
-            resetToken?: string;
-            resetPayload?: {
-                userId: string;
-                email: string;
-                purpose?: string;
-            };
-        }
-    }
-}
+// xác thực access token truyền trong header Authorization
 
-export const resetTokenMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+/*
+1. Lấy access token từ header Authorization
+2. Giải mã token để lấy userId (không verify)
+3. Lấy publicKey từ database dựa vào userId
+4. Verify access token với publicKey
+*/
+
+export const authAccessTokenMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        // 1. Check Authorization header
         const authHeader = req.headers["authorization"];
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return res.status(401).json({ 
                 success: false,
-                message: "Missing reset token in Authorization header" 
+                message: "Missing or invalid access token" 
             });
         }
-        
-        const resetToken = authHeader.split(" ")[1];
-        if (!resetToken) {
+
+        const accessToken = authHeader.split(" ")[1];
+        if (!accessToken) {
             return res.status(401).json({ 
                 success: false,
                 message: "Invalid token format" 
             });
         }
 
-        // 2. Verify JWT token
-        const JWT_SECRET = process.env.JWT_SECRET_AUTH;
-        if (!JWT_SECRET) {
-            return res.status(500).json({
+        // 1. Decode token để lấy userId (không verify)
+        const decodedUnverified = jwt.decode(accessToken) as any;
+        if (!decodedUnverified || !decodedUnverified.userId) {
+            return res.status(401).json({
                 success: false,
-                message: "Server configuration error"
+                message: "Invalid token structure"
             });
         }
-        
-        let decoded: any;
+
+        console.log('Token userId:', decodedUnverified.userId); // Debug
+
+        // 2. Lấy publicKey từ database dựa vào userId
+        const refreshTokenRecord = await prisma.refreshToken.findFirst({
+            where: {
+                userId: Number(decodedUnverified.userId),
+                revoked: false,
+                expiresAt: { gt: new Date() }
+            },
+            orderBy: { createdAt: 'desc' } // Lấy session mới nhất
+        });
+
+        if (!refreshTokenRecord) {
+            return res.status(401).json({
+                success: false,
+                message: "Token session not found or expired"
+            });
+        }
+        // 3. Verify access token với publicKey
+        let decoded: JWTPayload;
         try {
-            decoded = jwt.verify(resetToken, JWT_SECRET);
-        } catch (error: any) {
-            if (error.name === 'JsonWebTokenError') {
+            decoded = jwt.verify(accessToken, refreshTokenRecord.publicKey, { 
+                algorithms: ['RS256'] 
+            }) as JWTPayload;
+            
+        } catch (jwtError: any) {            
+            if (jwtError.name === 'JsonWebTokenError') {
                 return res.status(401).json({
                     success: false,
-                    message: "Invalid reset token"
+                    message: "Invalid access token"
                 });
             }
-            if (error.name === 'TokenExpiredError') {
+            if (jwtError.name === 'TokenExpiredError') {
                 return res.status(401).json({
                     success: false,
-                    message: "Reset token has expired"
+                    message: "Access token has expired"
                 });
             }
+            
             return res.status(401).json({
                 success: false,
                 message: "Token verification failed"
             });
         }
 
-        // 3. Check if token exists in database and is not used
-        const resetRecord = await prisma.passwordReset.findFirst({
-            where: {
-                token: resetToken,
-                used: false,
-                expiresAt: {
-                    gt: new Date() // Not expired
-                }
-            },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        name: true
-                    }
-                }
+        // 4. Lấy thông tin user
+        const user = await prisma.user.findFirst({
+            where: { id: Number(decoded.userId) },
+            select: { 
+                id: true, 
+                email: true, 
+                name: true, 
+                role: true 
             }
         });
 
-        if (!resetRecord) {
-            return res.status(401).json({
+        if (!user) {
+            return res.status(401).json({ 
                 success: false,
-                message: "Invalid, expired, or already used reset token"
+                message: "User not found or has been deactivated" 
             });
         }
 
-        // 4. Verify email from request body matches token
-        const { email } = req.body;
-        if (email && resetRecord.user.email !== email) {
+        // 5. Verify email matches
+        if (user.email !== decoded.email) {
             return res.status(401).json({
                 success: false,
-                message: "Email does not match reset token"
+                message: "Token user mismatch"
             });
         }
 
-        // 5. Attach token and payload to request
-        req.resetToken = resetToken;
-        req.resetPayload = {
-            userId: decoded.userId,
-            email: decoded.email,
-            purpose: decoded.purpose
-        };
+        // 6. Attach user and token to request
+        req.user = user;
+        req.token = accessToken;
 
-        console.log(`✅ Reset token verified for user: ${resetRecord.user.email}`);
         
-        next(); // Continue to next middleware/controller
+        next(); 
 
     } catch (error: any) {
-        console.error('Reset token middleware error:', error);
-        return res.status(500).json({
+        console.error('Auth middleware error:', error);
+        return res.status(500).json({ 
             success: false,
-            message: "Internal server error during token verification",
+            message: "Internal server error during authentication",
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }

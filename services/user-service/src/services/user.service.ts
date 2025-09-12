@@ -6,10 +6,11 @@ import userRepository from "../models/repository/user.repository";
 import crypto from 'crypto'
 import { createTokenPair } from "../utils/authUtils";
 import jwt, { SignOptions } from "jsonwebtoken";
-
+import { profileUserInstance } from "../models/profileUserModel";
 import dotenv from 'dotenv';
 import { transporter } from "../helpers/transporter";
 import { getInfoData } from "../utils/getInfoData";
+import { uploadImageHelper } from "../helpers/uploadImageCloudinary";
 dotenv.config()
 
 class UserService {
@@ -201,6 +202,25 @@ class UserService {
 
         // Trả về thông tin user
         return getInfoData(['email', 'updatedAt'], resetUser.user)
+    }
+
+    // upload profile
+    static uploadProfile = async (profileUserInstance: any) => {
+        if (!profileUserInstance) throw new BadRequestError('No profile data provided')
+
+        const imageUrl = await uploadImageHelper(profileUserInstance.avatarUrl)
+        const newProfile = await prisma.profile.create({
+            data: {
+                userId: profileUserInstance.userId,
+                address: profileUserInstance.address,
+                phone: profileUserInstance.phone,
+                avatarUrl: imageUrl
+            }
+        })
+
+        if (!newProfile) throw new BadRequestError('Error creating profile')
+
+        return getInfoData(['id', 'userId', 'address', 'phone', 'avatarUrl', 'createdAt', 'updatedAt'], newProfile)
     }
 }
     
