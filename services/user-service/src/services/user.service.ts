@@ -11,6 +11,7 @@ import dotenv from 'dotenv';
 import { transporter } from "../helpers/transporter";
 import { getInfoData } from "../utils/getInfoData";
 import { uploadImageHelper } from "../helpers/uploadImageCloudinary";
+import { access } from "fs";
 dotenv.config()
 
 class UserService {
@@ -222,6 +223,78 @@ class UserService {
 
         return getInfoData(['id', 'userId', 'address', 'phone', 'avatarUrl', 'createdAt', 'updatedAt'], newProfile)
     }
+
+    // refresh access token bằng refresh token
+    /* 
+        1. Hash refresh token để tìm trong db
+        2. Tìm refresh token trong db
+        3. Verify refresh token với publickey 
+        4. Tạo accesstoken mới  (giữ nguyên refresh token)
+        5. Tạo access token mới
+        6. Update publickey trong db (cho access token mới)
+    */
+   static refreshAccessToken = async (refreshToken: string) => {
+        console.log('Refresh token:', refreshToken);
+        if (!refreshToken) throw new BadRequestError('No refresh token provided')
+            
+        // 1. Hash Refresh Token
+        const hashedRefreshToken = crypto.createHash('sha256').update(refreshToken).digest('hex')
+
+        // 2. Tìm refresh token trong db
+        const refreshTokenFound = await prisma.refreshToken.findFirst({
+            where: {
+                tokenHash: hashedRefreshToken,
+                revoked: false,
+                expiresAt: { gt: new Date() } // Chưa hết hạn
+            },
+            include: {
+                user: true
+            }
+        })
+
+        if (!refreshTokenFound) throw new UnauthorizedRequestError(`Invalid or expired refresh token`)
+
+        // 3. Verify refresh token với public key 
+        const payload = jwt.verify(refreshToken, refreshTokenFound.publicKey, {
+            algorithms: ['RS256']
+        })
+
+        // 4. Tạo access token mới (Giữ nguyên refresh token)
+        const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+            modulusLength: 2048,
+            publicKeyEncoding: {
+                type: 'pkcs1',
+                format: 'pem'
+            },
+            privateKeyEncoding: {
+                type: 'pkcs1',
+                format: 'pem'
+            }
+        })
+
+        // 5. Tạo access token mới
+        const newTokenPair = await createTokenPair(
+            { userId: (payload as any).userId, email: (payload as any).email },
+            publicKey,
+            privateKey
+        )
+
+        // 6. Update publicKey trong db (cho access token mới)
+        await prisma.refreshToken.update({
+            where: {
+                id: refreshTokenFound.id
+            },
+            data: {
+                publicKey: publicKey
+            }
+        })
+
+        return {
+            user: getInfoData(['id', 'email', 'name', 'role'], refreshTokenFound.user),
+            accessToken: newTokenPair.accessToken,
+            refreshToken: refreshToken // giữ nguyên refresh token cũ
+        }
+   }
 }
     
 export default UserService

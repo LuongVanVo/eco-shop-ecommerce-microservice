@@ -18,6 +18,7 @@ router.post('/forgot-password', asyncHandler(UserController.forgotPassword))
 router.post('/reset-password', resetTokenMiddleware, asyncHandler(UserController.resetPassword))
 
 router.patch('/update-profile', authAccessTokenMiddleware, asyncHandler(UserController.updateProfile))
+router.post('/refresh-accessToken', validateRefreshTokenMiddleware, asyncHandler(UserController.refreshAccessToken))
 
 router.use(errorHandler)
 

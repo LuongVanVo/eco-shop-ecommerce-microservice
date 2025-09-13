@@ -12,7 +12,7 @@ export const createTokenPair = async (
     try {
         const accessToken = await jwt.sign(payload, privateKey, {
             algorithm: 'RS256',
-            expiresIn: '1d',
+            expiresIn: '15m',
         })
         const refreshToken = await jwt.sign(payload, privateKey, {
             algorithm: 'RS256',

@@ -40,8 +40,9 @@ export async function validateRefreshTokenMiddleware(
     }
 
     // 4. Gắn vào request để route dùng
-    (req as any).refreshToken = storedToken;
-    (req as any).user = storedToken.user;
+    (req as any).refreshToken = storedToken; // Gửi object token từ DB
+    (req as any).token = refreshToken; // Gửi chuỗi token thô để service dùng
+    (req as any).user = storedToken.user; // Gửi thông tin user nếu cần
 
     next();
   } catch (err) {
