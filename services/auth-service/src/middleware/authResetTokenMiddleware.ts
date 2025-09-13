@@ -1,7 +1,7 @@
 // middleware/resetTokenMiddleware.ts
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../config/database.config';
+import { prisma } from '../../../../config/database.config';
 
 // Extend Request interface để TypeScript hiểu
 declare global {

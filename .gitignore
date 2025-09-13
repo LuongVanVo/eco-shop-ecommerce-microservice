@@ -43,3 +43,6 @@ yarn.lock
 pnpm-lock.yaml
 
 /gateway/node_modules
+
+/services/auth-service/node_modules
+/services/user-service/node_modules

@@ -1,11 +1,13 @@
 import { PrismaClient } from "@prisma/client";
-import { logger } from "../utils/logger";
-import { NotFoundRequestError } from '../../../../shared/core/error.response';
+import { logger } from "../services/auth-service/src/utils/logger";
+import { NotFoundRequestError } from '../shared/core/error.response';
 
 import dotenv from 'dotenv';
 
-dotenv.config()
+dotenv.config({ path: '../.env' })
 
+// Singleton pattern for PrismaClient
+// Database config để cho các service cần dùng chung db
 class Database {
     private static instance: PrismaClient
 
