@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import { validateRefreshTokenMiddleware } from './utils/authToken';
 
 import dotenv from 'dotenv';
+import { authAccessTokenMiddleware } from './middleware/authMiddleware';
 
 dotenv.config();
 
@@ -23,7 +24,7 @@ app.use((req, res, next) => {
 
 app.use('/', userRouter)
 
-app.get('/test-server', validateRefreshTokenMiddleware, (req, res) => {
+app.get('/test-server', authAccessTokenMiddleware, (req, res) => {
   res.send('User Service is running')
 })
 

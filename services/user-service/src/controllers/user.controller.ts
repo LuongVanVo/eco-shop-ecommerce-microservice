@@ -1,6 +1,6 @@
 import UserService from "../services/user.service";
 import { SuccessResponse } from '../../../../shared/core/success.response'
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { validationResult } from "express-validator";
 import jwt from 'jsonwebtoken';
 
@@ -98,6 +98,17 @@ class UserController {
         const data = await UserService.uploadProfile(profileData)
         return new SuccessResponse({
             message: "Profile updated successfully !!",
+            metadata: data
+        }).send(res)
+    }
+
+    refreshAccessToken = async (req: Request, res: Response, next: NextFunction) => {
+        const refreshToken = (req as any).token
+
+        const data = await UserService.refreshAccessToken(refreshToken)
+
+        return new SuccessResponse ({
+            message: "Access token refreshed successfully",
             metadata: data
         }).send(res)
     }
