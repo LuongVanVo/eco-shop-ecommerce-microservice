@@ -22,6 +22,12 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use('/api/v1/auth', createProxyMiddleware({
+  target: process.env.PATH_TO_AUTH_SERVICE,
+  changeOrigin: true,
+  pathRewrite: (path: string, req: Request) => path,
+}))
+
+app.use('/api/v1/user', createProxyMiddleware({
   target: process.env.PATH_TO_USER_SERVICE,
   changeOrigin: true,
   pathRewrite: (path: string, req: Request) => path,
